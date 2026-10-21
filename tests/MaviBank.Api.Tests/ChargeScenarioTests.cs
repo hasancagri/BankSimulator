@@ -35,6 +35,14 @@ public class ChargeScenarioTests
     }
 
     [Fact]
+    public void Fraud_Red59_RetryEdilmez()
+    {
+        var o = Engine.Evaluate(CardWith(CardScenario.Fraud));
+        Assert.False(o.IsApproved);
+        Assert.Equal(ResponseCodes.Fraud, o.ProcReturnCode); // "59" — PG tarafı FraudDecline'a eşler (retry YOK)
+    }
+
+    [Fact]
     public void BilinmeyenKart_DoNotHonour()
     {
         var o = Engine.Evaluate(null);

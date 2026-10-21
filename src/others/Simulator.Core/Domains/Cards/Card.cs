@@ -19,5 +19,6 @@ public enum CardScenario
     Approve = 0,
     InsufficientFunds = 1,
     Timeout = 2,
-    ThreeDFail = 3   // 3D doğrulama başarısız (3DStatus=0); NonSecure'de do-not-honour gibi ele alınır
+    ThreeDFail = 3,  // 3D doğrulama başarısız (3DStatus=0); NonSecure'de do-not-honour gibi ele alınır
+    Fraud = 4        // şüpheli işlem → fraud-red (retry EDİLMEZ); banka-tarafı güvenlik dersi (Ders/req §7)
 }

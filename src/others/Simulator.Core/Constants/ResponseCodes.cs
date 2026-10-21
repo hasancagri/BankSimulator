@@ -7,6 +7,7 @@ public static class ResponseCodes
     public const string Approved = "00";
     public const string InsufficientFunds = "51";
     public const string DoNotHonour = "05";
+    public const string Fraud = "59";          // şüpheli işlem — ASLA retry edilmez (fraud-red ≠ limit-red)
     public const string Timeout = "91";
     public const string AuthError = "99";
 }

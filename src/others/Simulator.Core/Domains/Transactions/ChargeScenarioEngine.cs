@@ -20,6 +20,8 @@ public class ChargeScenarioEngine : IScopedDependency
                 ResponseCodes.InsufficientFunds, ResponseCodes.InsufficientFunds, "Yetersiz bakiye"),
             CardScenario.Timeout => ChargeOutcome.Declined(
                 ResponseCodes.Timeout, ResponseCodes.Timeout, "Issuer zaman asimi"),
+            CardScenario.Fraud => ChargeOutcome.Declined(
+                ResponseCodes.Fraud, ResponseCodes.Fraud, "Supheli islem"), // retry EDİLMEZ (fraud)
             _ => ChargeOutcome.Declined(ResponseCodes.DoNotHonour, ResponseCodes.DoNotHonour, "Islem onaylanmadi")
         };
     }
