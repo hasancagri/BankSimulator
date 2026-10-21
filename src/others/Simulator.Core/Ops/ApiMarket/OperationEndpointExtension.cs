@@ -68,6 +68,27 @@ public static class OperationEndpointExtension
             return Results.Ok(ApiResponse.Of(r));
         });
 
+        // Gün-sonu listesi = kapalı batch özetleri (GetBatchSummary aynası, operasyon metod adı).
+        group.MapPost("/GetPosEndOfDayList", async (ApiRequest body, HttpRequest req, IMessageBus bus,
+            IDocumentSession session, CancellationToken ct) =>
+        {
+            var merchant = await Authenticate(req, session, ct);
+            if (merchant is null) return Results.Unauthorized();
+            var r = await bus.InvokeAsync<GetBatchSummary.Result>(new GetBatchSummary.Query(body.Get("ShopCode") ?? merchant.ShopCode));
+            return Results.Ok(ApiResponse.Of(r));
+        });
+
+        // Günlük + ekstre işlem listesi = kapalı-batch işlem dökümü (GetTransactionList aynası).
+        foreach (var method in new[] { "GetPosDailyTransactionList", "GetPosStatementTransactionList" })
+            group.MapPost("/" + method, async (ApiRequest body, HttpRequest req, IMessageBus bus,
+                IDocumentSession session, CancellationToken ct) =>
+            {
+                var merchant = await Authenticate(req, session, ct);
+                if (merchant is null) return Results.Unauthorized();
+                var r = await bus.InvokeAsync<GetTransactionList.Result>(new GetTransactionList.Query(body.Get("ShopCode") ?? merchant.ShopCode));
+                return Results.Ok(ApiResponse.Of(r));
+            });
+
         // POS/terminal listesi (gereksinim §2 GetPosList) — sim'de merchant başına tek sanal POS.
         group.MapPost("/GetPosList", async (ApiRequest _, HttpRequest req, IDocumentSession session, CancellationToken ct) =>
         {
