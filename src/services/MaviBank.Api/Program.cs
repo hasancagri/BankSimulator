@@ -58,6 +58,8 @@ builder.Host.UseWolverine(opts =>
     opts.Discovery.IncludeType(typeof(MaviBank.Api.Domains.Transactions.Features.Queries.StatusHistory.StatusHistoryHandler));
     opts.Discovery.IncludeType(typeof(MaviBank.Api.Domains.Transactions.Features.Commands.ThreeDInitiate.ThreeDInitiateHandler));
     opts.Discovery.IncludeType(typeof(MaviBank.Api.Domains.Transactions.Features.Commands.ThreeDComplete.ThreeDCompleteHandler));
+    opts.Discovery.IncludeType(typeof(MaviBank.Api.Domains.Transactions.Features.Queries.GetBatchSummary.GetBatchSummaryHandler));
+    opts.Discovery.IncludeType(typeof(MaviBank.Api.Domains.Transactions.Features.Queries.GetBatchDetail.GetBatchDetailHandler));
 });
 
 builder.Services.AddAllDependencies();
@@ -85,7 +87,10 @@ app.MapScalarDocumentation();
 // InterVpos ödeme yüzü (POST /mpi/Default.aspx — Auth/Void/Refund/StatusHistory TxnType dispatch).
 app.AddInterVposEndpoints();
 
-// Faz 2: dev manuel gün-sonu tetiği (operasyon API + MCP Faz 3).
+// Faz 2: dev manuel gün-sonu tetiği.
 MaviBank.Api.Ops.EndOfDayEndpointExtension.AddOpsEndpoints(app);
+
+// Faz 3: API Market operasyon yüzü (JSON zarf + SubscriptionKey; mutabakat okuma). MCP mount = AgentPlatform.
+MaviBank.Api.Ops.ApiMarket.OperationEndpointExtension.AddOperationEndpoints(app);
 
 await app.RunAsync();

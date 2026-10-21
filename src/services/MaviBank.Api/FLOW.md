@@ -69,8 +69,9 @@ mews/pos) gönderdiği **NonSecure satış (Auth)** isteğini karşılar, kimli�
 
 ## Sınır (bu BC'nin dokunmadığı)
 
-**Operasyon API (10 JSON uç + MCP) + mutabakat raporları, zamanlanmış gün-sonu kesimi (Process/timer), tam
-komisyon matrisi (kart tipi/MCC/ciro), hesaba düşüş (MoneyOrder), onboarding ve 3DModel ayrı-completion adımı
-(şu an 3DPay/3DHost semantiği: callback nihai) bu dilimin DIŞINDADIR** (sonraki fazlar). Üye-işyeri/müşteri
-sipariş durumu çağıranın (PG/store) işidir — MaviBank yalnız otorizasyon + işlem yaşam döngüsü + `;;`/3D
-sonucu. Gün sonu şimdilik manuel tetik.
+**Operasyon API mutabakat çifti KURULDU** (`POST /api/GetPosBatchSummary` + `/GetPosBatchDetail`, JSON zarf +
+`SubscriptionKey`; pull modeli — merchant sorar). Kalan operasyon uçları (TransactionList/AccountDetail/
+EndOfDayList...) + **MCP yüzü (AgentPlatform gateway mount + AP IdP scope)**, zamanlanmış gün-sonu kesimi
+(Process/timer), tam komisyon matrisi (kart tipi/MCC/ciro), hesaba düşüş (MoneyOrder), onboarding ve 3DModel
+ayrı-completion (şu an 3DPay/3DHost semantiği) bu dilimin DIŞINDADIR (sonraki fazlar). Üye-işyeri/müşteri
+sipariş durumu çağıranın (PG/store) işidir. Gün sonu şimdilik manuel tetik.
