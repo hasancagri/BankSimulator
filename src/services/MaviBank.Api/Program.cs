@@ -64,14 +64,17 @@ builder.Host.UseWolverine(opts =>
     opts.Discovery.IncludeType(typeof(MaviBank.Api.Domains.Transactions.Features.Queries.StatusHistory.StatusHistoryHandler));
     opts.Discovery.IncludeType(typeof(MaviBank.Api.Domains.Transactions.Features.Commands.ThreeDInitiate.ThreeDInitiateHandler));
     opts.Discovery.IncludeType(typeof(MaviBank.Api.Domains.Transactions.Features.Commands.ThreeDComplete.ThreeDCompleteHandler));
+    opts.Discovery.IncludeType(typeof(MaviBank.Api.Domains.Transactions.Features.Commands.ThreeDModelComplete.ThreeDModelCompleteHandler));
     opts.Discovery.IncludeType(typeof(MaviBank.Api.Domains.Transactions.Features.Queries.GetBatchSummary.GetBatchSummaryHandler));
     opts.Discovery.IncludeType(typeof(MaviBank.Api.Domains.Transactions.Features.Queries.GetBatchDetail.GetBatchDetailHandler));
+    opts.Discovery.IncludeType(typeof(MaviBank.Api.Domains.Transactions.Features.Queries.GetTransactionList.GetTransactionListHandler));
     opts.Discovery.IncludeType(typeof(MaviBank.Api.Domains.Accounts.Features.Commands.ReleaseBloke.ReleaseBlokeHandler));
     opts.Discovery.IncludeType(typeof(MaviBank.Api.Domains.Accounts.Features.Queries.GetAccountDetail.GetAccountDetailHandler));
     opts.Discovery.IncludeType(typeof(MaviBank.Api.Domains.Onboarding.Features.Commands.SubmitApplication.SubmitApplicationHandler));
     opts.Discovery.IncludeType(typeof(MaviBank.Api.Domains.Onboarding.Features.Commands.AdvanceApplication.AdvanceApplicationHandler));
     opts.Discovery.IncludeType(typeof(MaviBank.Api.Domains.Onboarding.Features.Commands.RejectApplication.RejectApplicationHandler));
     opts.Discovery.IncludeType(typeof(MaviBank.Api.Domains.Onboarding.Features.Commands.ActivateApplication.ActivateApplicationHandler));
+    opts.Discovery.IncludeType(typeof(MaviBank.Api.Domains.Merchants.Features.Commands.ReissueSecretKey.ReissueSecretKeyHandler));
 });
 
 builder.Services.AddAllDependencies();
@@ -105,7 +108,8 @@ MaviBank.Api.Ops.EndOfDayEndpointExtension.AddOpsEndpoints(app);
 // Faz 3: API Market operasyon yüzü (JSON zarf + SubscriptionKey; mutabakat okuma). MCP mount = AgentPlatform.
 MaviBank.Api.Ops.ApiMarket.OperationEndpointExtension.AddOperationEndpoints(app);
 
-// Faz 7: onboarding (başvuru + admin değerlendirme + aktivasyon/credential reveal).
+// Faz 7: onboarding (başvuru + admin değerlendirme + aktivasyon/credential reveal) + panel (SecretKey yenile).
 app.AddOnboardingEndpoints();
+app.AddMerchantPanelEndpoints();
 
 await app.RunAsync();

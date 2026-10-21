@@ -25,9 +25,6 @@ public static class ThreeDComplete
             if (s3d is null || s3d.Status == ThreeDSessionStatus.Completed)
                 return new Result(false, string.Empty, new List<KeyValuePair<string, string>>());
 
-            s3d.Complete();
-            session.Store(s3d);
-
             var merchant = await session.LoadAsync<Merchant>(s3d.ShopCode, ct);
             var now = DateTime.UtcNow;
             var codeValid = codeChannel.Verify(cmd.Code);
@@ -42,38 +39,16 @@ public static class ThreeDComplete
                 payerTxnId = Guid.NewGuid().ToString("N")[..12];
                 eci = "05"; // full authentication
 
-                // Çekim (3D doğrulandı) — senaryo kararı (gerçek bakiye yok).
-                var outcome = engine.Evaluate(new Card { Scenario = s3d.Scenario });
-                var streamKey = $"{s3d.ShopCode}:{s3d.OrderId}";
-                var existing = await session.Events.AggregateStreamAsync<Transaction>(streamKey, token: ct);
-
-                if (existing is null && outcome.IsApproved)
+                if (s3d.SecureType == "3DModel")
                 {
-                    var batch = await session.Query<Batch>()
-                        .Where(b => b.ShopCode == s3d.ShopCode && b.Status == BatchStatus.Open)
-                        .FirstOrDefaultAsync(ct) ?? Batch.OpenFor(s3d.ShopCode, now);
-                    batch.AddTransaction(streamKey);
-                    session.Store(batch);
-
-                    session.Events.StartStream<Transaction>(streamKey, new TransactionAuthorized(
-                        s3d.ShopCode, s3d.OrderId, batch.BatchNo, Guid.NewGuid().ToString("N")[..12].ToUpperInvariant(),
-                        outcome.AuthCode!, s3d.Amount, s3d.Currency, s3d.Installment, s3d.MaskedPan, s3d.CardType, now));
-                    procReturnCode = InterVposConstants.ProcApproved;
-                    txnStat = nameof(TransactionStatus.Authorized);
-                }
-                else if (existing is null)
-                {
-                    session.Events.StartStream<Transaction>(streamKey, new TransactionDeclined(
-                        s3d.ShopCode, s3d.OrderId, outcome.ProcReturnCode, outcome.ErrorCode ?? string.Empty,
-                        outcome.ErrorMessage ?? string.Empty, s3d.Amount, s3d.MaskedPan, now));
-                    procReturnCode = outcome.ProcReturnCode;
-                    txnStat = nameof(TransactionStatus.Declined);
+                    // Callback NİHAİ DEĞİL — çekim ayrı completion adımında (SecureType=NonSecure + MD).
+                    procReturnCode = InterVposConstants.ProcApproved; // yalnız 3D doğrulama OK
+                    txnStat = "3D-Auth";
                 }
                 else
                 {
-                    // İdempotent tekrar — mevcut durum.
-                    procReturnCode = existing.ProcReturnCode ?? InterVposConstants.ProcApproved;
-                    txnStat = existing.Status.ToString();
+                    // 3DPay/3DHost: callback nihai → şimdi çek (paylaşılan helper).
+                    (procReturnCode, txnStat) = await ThreeDCharge.ChargeAsync(s3d, session, engine, now, ct);
                 }
             }
             else
@@ -82,6 +57,10 @@ public static class ThreeDComplete
                 procReturnCode = InterVposConstants.ProcDoNotHonour;
                 txnStat = "3D-Fail";
             }
+
+            // Oturumu tamamla — 3DModel completion MD'yi doğrulayabilsin (3D sonucu + MD saklanır).
+            s3d.Complete(threeDPass, threeDPass ? md : null);
+            session.Store(s3d);
 
             // Callback alanları (sıralı) — HASH imzalanacak değerler.
             var amountStr = s3d.Amount.ToString(CultureInfo.InvariantCulture);

@@ -13,14 +13,26 @@ public static class InterVposEndpointExtension
 {
     public static void AddInterVposEndpoints(this WebApplication app)
     {
-        app.MapPost("/mpi/Default.aspx", async (HttpRequest req, IMessageBus bus, ILoggerFactory lf) =>
+        app.MapPost("/mpi/Default.aspx", async (HttpRequest req, IMessageBus bus, ILoggerFactory lf,
+            IDocumentSession session, CancellationToken ct) =>
             {
                 var logger = lf.CreateLogger("InterVpos");
-                var form = await req.ReadFormAsync();
+                var form = await req.ReadFormAsync(ct);
                 logger.LogInformation("InterVpos istek: {Raw}", MaskRaw(form));
 
                 var txnType = form["TxnType"].ToString();
                 var secureType = form["SecureType"].ToString();
+
+                // Faz 7 IP whitelist: merchant'ın izinli IP listesi varsa, liste dışı istek reddedilir.
+                var shopCode = form["ShopCode"].ToString();
+                if (!string.IsNullOrEmpty(shopCode))
+                {
+                    var m = await session.LoadAsync<Merchant>(shopCode, ct);
+                    if (m is not null && !m.IsIpAllowed(req.HttpContext.Connection.RemoteIpAddress?.ToString()))
+                        return Results.Text(SemicolonEncoder.Encode(
+                            ErrorFields(InterVposConstants.ProcAuthError, "IP", "Izinli olmayan IP")),
+                            "text/plain; charset=utf-8");
+                }
 
                 // 3D Secure (SecureType=3DModel/3DPay/3DHost) → sahte ACS HTML döner (`;;` değil).
                 if (txnType == InterVposConstants.TxnTypeAuth && IsThreeD(secureType))
@@ -31,6 +43,15 @@ public static class InterVposEndpointExtension
                             ErrorFields(InterVposConstants.ProcAuthError, "3D", init.ErrorMessage ?? "3D hata")),
                             "text/plain; charset=utf-8");
                     return Results.Content(ThreeDPages.AcsPage(init), "text/html; charset=utf-8");
+                }
+
+                // 3DModel completion: NonSecure + MD → ACS sonrası asıl çekim (callback nihai değildi).
+                if (txnType == InterVposConstants.TxnTypeAuth
+                    && secureType == InterVposConstants.SecureTypeNonSecure
+                    && !string.IsNullOrEmpty(form["MD"].ToString()))
+                {
+                    var done = await HandleThreeDModelComplete(form, bus);
+                    return Results.Text(SemicolonEncoder.Encode(done), "text/plain; charset=utf-8");
                 }
 
                 var fields = txnType switch
@@ -75,8 +96,30 @@ public static class InterVposEndpointExtension
             f["ShopCode"].ToString(), f["UserCode"].ToString(), f["UserPass"].ToString(),
             f["Pan"].ToString(), f["Expiry"].ToString(), f["Cvv2"].ToString(),
             f["PurchAmount"].ToString(), f["InstallmentCount"].ToString(), f["TxnType"].ToString(),
-            amount, currency, f["OrderId"].ToString(), installment, cardType,
+            f["SecureType"].ToString(), amount, currency, f["OrderId"].ToString(), installment, cardType,
             f["OkUrl"].ToString(), f["FailUrl"].ToString(), f["Rnd"].ToString(), f["Hash"].ToString());
+    }
+
+    // 3DModel completion (SecureType=NonSecure + MD): asıl çekim burada.
+    private static async Task<List<KeyValuePair<string, string>>> HandleThreeDModelComplete(IFormCollection f, IMessageBus bus)
+    {
+        var r = await bus.InvokeAsync<ThreeDModelComplete.Result>(new ThreeDModelComplete.Command(
+            f["ShopCode"].ToString(), f["UserCode"].ToString(), f["UserPass"].ToString(),
+            f["OrderId"].ToString(), f["MD"].ToString()));
+
+        var fields = Base(r.ProcReturnCode, r.Success ? InterVposConstants.ResponseApproved : InterVposConstants.ResponseError);
+        fields.Add(new("OrderId", r.OrderId));
+        if (r.Success)
+        {
+            fields.Add(new("TransId", r.TransId ?? string.Empty));
+            fields.Add(new("AuthCode", r.AuthCode ?? string.Empty));
+        }
+        else
+        {
+            fields.Add(new("ErrorCode", r.ErrorCode ?? string.Empty));
+            fields.Add(new("ErrorMessage", r.ErrorMessage ?? string.Empty));
+        }
+        return WithDate(fields);
     }
 
     // --- TxnType=Auth ---

@@ -39,13 +39,15 @@ mews/pos) gönderdiği **NonSecure satış (Auth)** isteğini karşılar, kimli�
    batch işleme Refund reddedilir.
 10. **Durum sorgu (StatusHistory).** `TxnType=StatusHistory` (orgOrderId): işlemin güncel hali (durum,
     RefundedAmount, VoidDate) döner `(StatusHistory)` — PG in-doubt/çift-çekim emniyeti; yoksa bulunamadı.
-11. **3D başlat.** SecureType=3DModel/3DPay/3DHost: gelen istek Hash'i doğrulanır (SHA1, ayraçsız) ve bekleyen
-    3D oturumu saklanır `(ThreeDInitiate)` `(InterVposHash)` `(ThreeDSession)`; sahte ACS "MaviSecure" (SMS kod
-    ekranı) HTML döner `(ThreeDPages)`. Kod gerçek SMS değil `(ICodeDeliveryChannel)`.
-12. **3D doğrula + çekim.** ACS kod girişi: doğru kod & senaryo 3D-fail değil → 3DStatus=1 → çekim (Transaction
-    Authorized/Declined + batch); aksi → 3DStatus=0, çekim yok `(ThreeDComplete)`.
-13. **Callback.** Sonuç OkUrl (başarı) / FailUrl'e auto-POST HTML ile döner; alanlar + `HASH`/`HASHPARAMS`
-    (bankanın imzası) `(InterVposHash)` `(ThreeDPages)`; merchant HASH'i SecretKey'le doğrular.
+11. **3D başlat.** SecureType=3DModel/3DPay/3DHost: gelen istek Hash'i doğrulanır (SHA1, ayraçsız; rotasyon
+    overlap'inde eski anahtar da kabul) ve bekleyen 3D oturumu saklanır `(ThreeDInitiate)` `(InterVposHash)`
+    `(ThreeDSession)`; sahte ACS "MaviSecure" HTML döner `(ThreeDPages)`. Kod gerçek SMS değil `(ICodeDeliveryChannel)`.
+12. **3D doğrula.** ACS kod girişi: doğru kod & senaryo 3D-fail değil → 3DStatus=1; aksi → 0 `(ThreeDComplete)`.
+    3DPay/3DHost'ta çekim BURADA `(ThreeDCharge)`; 3DModel'de çekim ayrı completion'da.
+13. **Callback.** Sonuç OkUrl/FailUrl'e auto-POST HTML; alanlar + `HASH`/`HASHPARAMS` (bankanın imzası)
+    `(InterVposHash)` `(ThreeDPages)`; merchant HASH'i SecretKey'le doğrular.
+14. **3DModel completion.** Merchant ACS callback'inden sonra ayrı istek (SecureType=NonSecure + MD) atar;
+    MD 3D oturumuyla doğrulanır ve asıl çekim BURADA yapılır `(ThreeDModelComplete)` `(ThreeDCharge)`.
 
 ## Domain kuralları (süreci yöneten değişmezler)
 
@@ -76,9 +78,9 @@ mews/pos) gönderdiği **NonSecure satış (Auth)** isteğini karşılar, kimli�
 
 ## Sınır (bu BC'nin dokunmadığı)
 
-**Operasyon API mutabakat çifti KURULDU** (`POST /api/GetPosBatchSummary` + `/GetPosBatchDetail`, JSON zarf +
-`SubscriptionKey`; pull modeli — merchant sorar). Kalan operasyon uçları (TransactionList/AccountDetail/
-EndOfDayList...) + **MCP yüzü (AgentPlatform gateway mount + AP IdP scope)**, zamanlanmış gün-sonu kesimi
-(Process/timer), tam komisyon matrisi (kart tipi/MCC/ciro), sertifikasyon kapısı/panel/IP-whitelist ve 3DModel
-ayrı-completion (şu an 3DPay/3DHost semantiği) bu dilimin DIŞINDADIR (sonraki fazlar). Üye-işyeri/müşteri
-sipariş durumu çağıranın (PG/store) işidir. Gün sonu şimdilik manuel tetik.
+**Operasyon API KURULDU** (JSON zarf + `SubscriptionKey`, pull modeli): `GetPosBatchSummary`/`GetPosBatchDetail`/
+`GetPosTransactionList`/`GetPosAccountDetail`/`GetAccountTransactionList`/`GetPosList`. Faz 7 panel: SecretKey
+yenile (24s overlap) + IP whitelist (merchant AllowedIps). 3DModel completion + 3DPay/3DHost hepsi var.
+**DIŞINDA (sonraki):** **MCP yüzü (AgentPlatform gateway mount + AP IdP scope)**, zamanlanmış gün-sonu kesimi
+(Process/timer), tam komisyon matrisi (kart tipi/MCC/ciro), operasyon Daily/Statement varyantları,
+sertifikasyon kapısı + panel UI, **TuruncuBank** (farklı protokol XML+SHA512). Gün sonu şimdilik manuel tetik.

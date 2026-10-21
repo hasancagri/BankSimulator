@@ -19,23 +19,32 @@ public class ThreeDSession
     public string OkUrl { get; private set; } = string.Empty;
     public string FailUrl { get; private set; } = string.Empty;
     public string Rnd { get; private set; } = string.Empty;
+    public string SecureType { get; private set; } = string.Empty; // 3DModel / 3DPay / 3DHost
     public CardScenario Scenario { get; private set; } // 3D sonucu + çekim kararını belirler (determinist)
     public ThreeDSessionStatus Status { get; private set; }
+    public string? Md { get; private set; }            // 3DModel: ACS sonrası üretilir, completion doğrular
+    public bool ThreeDPassed { get; private set; }     // 3D doğrulama sonucu (completion çekimi için)
     public DateTime CreatedAt { get; private set; }
 
     public static ThreeDSession Create(string shopCode, string orderId, decimal amount, int currency,
         int installment, int cardType, string maskedPan, string okUrl, string failUrl, string rnd,
-        CardScenario scenario, DateTime now)
+        string secureType, CardScenario scenario, DateTime now)
         => new()
         {
             Sid = Guid.NewGuid().ToString("N"),
             ShopCode = shopCode, OrderId = orderId, Amount = amount, Currency = currency,
             Installment = installment, CardType = cardType, MaskedPan = maskedPan,
-            OkUrl = okUrl, FailUrl = failUrl, Rnd = rnd, Scenario = scenario,
+            OkUrl = okUrl, FailUrl = failUrl, Rnd = rnd, SecureType = secureType, Scenario = scenario,
             Status = ThreeDSessionStatus.Pending, CreatedAt = now
         };
 
-    public void Complete() => Status = ThreeDSessionStatus.Completed;
+    /// <summary>ACS tamamlandı: 3D sonucu + (3DModel için) completion'da doğrulanacak MD saklanır.</summary>
+    public void Complete(bool threeDPassed, string? md)
+    {
+        Status = ThreeDSessionStatus.Completed;
+        ThreeDPassed = threeDPassed;
+        Md = md;
+    }
 }
 
 public enum ThreeDSessionStatus

@@ -10,7 +10,7 @@ public static class ThreeDInitiate
 {
     public record Command(
         string ShopCode, string UserCode, string UserPass, string Pan, string Expiry, string Cvv,
-        string PurchAmountRaw, string InstallmentRaw, string TxnType, decimal Amount, int Currency,
+        string PurchAmountRaw, string InstallmentRaw, string TxnType, string SecureType, decimal Amount, int Currency,
         string OrderId, int Installment, int CardType, string OkUrl, string FailUrl, string Rnd, string Hash);
 
     public record Result(bool Valid, string Sid, string OrderId, decimal Amount, string MaskedPan,
@@ -27,10 +27,14 @@ public static class ThreeDInitiate
                 return new Result(false, string.Empty, cmd.OrderId, cmd.Amount, string.Empty, string.Empty,
                     "Gecersiz uye isyeri bilgileri");
 
-            // İstek hash doğrulama (merchant'ın ham string değerleriyle birebir — İlke V).
-            var expected = InterVposHash.ComputeRequestHash(cmd.ShopCode, cmd.OrderId, cmd.PurchAmountRaw,
-                cmd.OkUrl, cmd.FailUrl, cmd.TxnType, cmd.InstallmentRaw, cmd.Rnd, merchant.SecretKey);
-            if (!string.Equals(expected, cmd.Hash, StringComparison.Ordinal))
+            // İstek hash doğrulama (ham string değerlerle birebir — İlke V). Rotasyon overlap'i: güncel ya da
+            // (24s içindeki) önceki SecretKey ile hesaplanan hash kabul edilir (Faz 7 panel "Yenile").
+            var hashOk = merchant.ValidSecretKeys(DateTime.UtcNow).Any(secret =>
+                string.Equals(
+                    InterVposHash.ComputeRequestHash(cmd.ShopCode, cmd.OrderId, cmd.PurchAmountRaw,
+                        cmd.OkUrl, cmd.FailUrl, cmd.TxnType, cmd.InstallmentRaw, cmd.Rnd, secret),
+                    cmd.Hash, StringComparison.Ordinal));
+            if (!hashOk)
                 return new Result(false, string.Empty, cmd.OrderId, cmd.Amount, string.Empty, string.Empty,
                     "Gecersiz hash");
 
@@ -39,7 +43,7 @@ public static class ThreeDInitiate
             var maskedPan = SemicolonEncoder.MaskPan(cmd.Pan);
 
             var s3d = ThreeDSession.Create(cmd.ShopCode, cmd.OrderId, cmd.Amount, cmd.Currency, cmd.Installment,
-                cmd.CardType, maskedPan, cmd.OkUrl, cmd.FailUrl, cmd.Rnd, scenario, DateTime.UtcNow);
+                cmd.CardType, maskedPan, cmd.OkUrl, cmd.FailUrl, cmd.Rnd, cmd.SecureType, scenario, DateTime.UtcNow);
             session.Store(s3d);
 
             var code = codeChannel.Deliver(cmd.OrderId); // demo: ekranda gösterilir (gerçek SMS yok)

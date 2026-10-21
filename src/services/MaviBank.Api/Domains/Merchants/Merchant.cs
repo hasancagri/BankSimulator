@@ -18,7 +18,32 @@ public class Merchant
     public decimal DefaultCommissionRate { get; set; }                     // tabloda yoksa
     public int BlokeGun { get; set; }                                      // valör gün sayısı
 
+    // Faz 7 panel: izinli IP listesi (boş = kısıt yok) + SecretKey rotasyonu (eski anahtar 24s geçerli).
+    public string[] AllowedIps { get; set; } = Array.Empty<string>();
+    public string? PreviousSecretKey { get; set; }
+    public DateTime? PreviousSecretKeyValidUntil { get; set; }
+
     /// <summary>Taksit için komisyon oranı (tabloda yoksa varsayılan).</summary>
     public decimal RateFor(int installment)
         => CommissionRates.TryGetValue(installment, out var r) ? r : DefaultCommissionRate;
+
+    /// <summary>İzinli IP mi — liste boşsa kısıt yok (whitelist dışı istek reddi, Faz 7).</summary>
+    public bool IsIpAllowed(string? ip)
+        => AllowedIps.Length == 0 || (ip is not null && AllowedIps.Contains(ip));
+
+    /// <summary>Panel "Yenile": yeni SecretKey; eski anahtar overlap (24s) boyunca geçerli kalır.</summary>
+    public void ReissueSecretKey(string newKey, DateTime now, TimeSpan overlap)
+    {
+        PreviousSecretKey = SecretKey;
+        PreviousSecretKeyValidUntil = now + overlap;
+        SecretKey = newKey;
+    }
+
+    /// <summary>3D hash için geçerli imza anahtarları: güncel + (overlap içinde) önceki.</summary>
+    public IEnumerable<string> ValidSecretKeys(DateTime now)
+    {
+        yield return SecretKey;
+        if (PreviousSecretKey is not null && PreviousSecretKeyValidUntil is { } v && now < v)
+            yield return PreviousSecretKey;
+    }
 }

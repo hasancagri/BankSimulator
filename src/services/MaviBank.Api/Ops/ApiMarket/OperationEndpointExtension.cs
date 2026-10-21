@@ -59,6 +59,27 @@ public static class OperationEndpointExtension
             var r = await bus.InvokeAsync<GetAccountDetail.Result>(new GetAccountDetail.Query(shopCode));
             return Results.Ok(ApiResponse.Of(new { r.ShopCode, r.Movements }));
         });
+
+        group.MapPost("/GetPosTransactionList", async (ApiRequest body, HttpRequest req, IMessageBus bus,
+            IDocumentSession session, CancellationToken ct) =>
+        {
+            var merchant = await Authenticate(req, session, ct);
+            if (merchant is null) return Results.Unauthorized();
+            var shopCode = body.Get("ShopCode") ?? merchant.ShopCode;
+            var r = await bus.InvokeAsync<GetTransactionList.Result>(new GetTransactionList.Query(shopCode));
+            return Results.Ok(ApiResponse.Of(r));
+        });
+
+        // POS/terminal listesi (gereksinim §2 GetPosList) — sim'de merchant başına tek sanal POS.
+        group.MapPost("/GetPosList", async (ApiRequest _, HttpRequest req, IDocumentSession session, CancellationToken ct) =>
+        {
+            var merchant = await Authenticate(req, session, ct);
+            if (merchant is null) return Results.Unauthorized();
+            return Results.Ok(ApiResponse.Of(new[]
+            {
+                new { PosId = merchant.ShopCode + "-POS1", merchant.ShopCode, merchant.BankCode, Status = "Active" }
+            }));
+        });
     }
 
     // SubscriptionKey → seed'li merchant (fail-closed). Sır header'da; cevaba/log'a girmez (İlke VI).
