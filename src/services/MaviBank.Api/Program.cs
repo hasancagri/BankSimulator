@@ -35,6 +35,9 @@ builder.Services.AddMarten(opts =>
 
         // Faz 4: bekleyen 3D oturumu (init ↔ ACS arası), kimlik Sid.
         opts.Schema.For<MaviBank.Api.Domains.Transactions.ThreeD.ThreeDSession>().Identity(x => x.Sid);
+
+        // Faz 6: POS alacak hesabı, kimlik ShopCode.
+        opts.Schema.For<Account>().Identity(x => x.ShopCode);
     })
     .IntegrateWithWolverine()
     .ApplyAllDatabaseChangesOnStartup();
@@ -60,6 +63,8 @@ builder.Host.UseWolverine(opts =>
     opts.Discovery.IncludeType(typeof(MaviBank.Api.Domains.Transactions.Features.Commands.ThreeDComplete.ThreeDCompleteHandler));
     opts.Discovery.IncludeType(typeof(MaviBank.Api.Domains.Transactions.Features.Queries.GetBatchSummary.GetBatchSummaryHandler));
     opts.Discovery.IncludeType(typeof(MaviBank.Api.Domains.Transactions.Features.Queries.GetBatchDetail.GetBatchDetailHandler));
+    opts.Discovery.IncludeType(typeof(MaviBank.Api.Domains.Accounts.Features.Commands.ReleaseBloke.ReleaseBlokeHandler));
+    opts.Discovery.IncludeType(typeof(MaviBank.Api.Domains.Accounts.Features.Queries.GetAccountDetail.GetAccountDetailHandler));
 });
 
 builder.Services.AddAllDependencies();

@@ -1,4 +1,5 @@
 using MaviBank.Api.Domains.Transactions.Features.Commands;
+using MaviBank.Api.Domains.Accounts.Features.Commands;
 
 namespace MaviBank.Api.Ops;
 
@@ -17,6 +18,15 @@ public static class EndOfDayEndpointExtension
             {
                 var summary = await bus.InvokeAsync<EndOfDay.Summary>(new EndOfDay.Command(body.ShopCode));
                 return summary.Found ? Results.Ok(summary) : Results.NotFound(summary);
+            })
+            .WithTags("ops")
+            .AllowAnonymous();
+
+        // Faz 6: valörü dolan blokeli tutarları hesaba düşür (dev tetik; gerçekte zamanlanmış Process).
+        app.MapPost("/ops/release-bloke", async (EndOfDayBody body, IMessageBus bus) =>
+            {
+                var r = await bus.InvokeAsync<ReleaseBloke.Result>(new ReleaseBloke.Command(body.ShopCode));
+                return r.Found ? Results.Ok(r) : Results.NotFound(r);
             })
             .WithTags("ops")
             .AllowAnonymous();

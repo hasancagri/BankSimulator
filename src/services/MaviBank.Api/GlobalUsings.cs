@@ -21,3 +21,4 @@ global using MaviBank.Api.Domains.Transactions.ThreeD;
 global using MaviBank.Api.Domains.Merchants;
 global using MaviBank.Api.Domains.Cards;
 global using MaviBank.Api.Domains.Batches;
+global using MaviBank.Api.Domains.Accounts;

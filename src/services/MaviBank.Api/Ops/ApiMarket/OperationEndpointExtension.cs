@@ -1,4 +1,5 @@
 using MaviBank.Api.Domains.Transactions.Features.Queries;
+using MaviBank.Api.Domains.Accounts.Features.Queries;
 
 namespace MaviBank.Api.Ops.ApiMarket;
 
@@ -36,6 +37,27 @@ public static class OperationEndpointExtension
             var batchNo = body.Get("BatchNo") ?? string.Empty;
             var r = await bus.InvokeAsync<GetBatchDetail.Result>(new GetBatchDetail.Query(batchNo));
             return r.Found ? Results.Ok(ApiResponse.Of(r)) : Results.NotFound(ApiResponse.Of(r));
+        });
+
+        // Faz 6: POS hesap durumu (kullanılabilir/blokeli bakiye) + hesap hareket dökümü (ekstre).
+        group.MapPost("/GetPosAccountDetail", async (ApiRequest body, HttpRequest req, IMessageBus bus,
+            IDocumentSession session, CancellationToken ct) =>
+        {
+            var merchant = await Authenticate(req, session, ct);
+            if (merchant is null) return Results.Unauthorized();
+            var shopCode = body.Get("ShopCode") ?? merchant.ShopCode;
+            var r = await bus.InvokeAsync<GetAccountDetail.Result>(new GetAccountDetail.Query(shopCode));
+            return Results.Ok(ApiResponse.Of(new { r.ShopCode, r.AvailableBalance, r.PendingBalance }));
+        });
+
+        group.MapPost("/GetAccountTransactionList", async (ApiRequest body, HttpRequest req, IMessageBus bus,
+            IDocumentSession session, CancellationToken ct) =>
+        {
+            var merchant = await Authenticate(req, session, ct);
+            if (merchant is null) return Results.Unauthorized();
+            var shopCode = body.Get("ShopCode") ?? merchant.ShopCode;
+            var r = await bus.InvokeAsync<GetAccountDetail.Result>(new GetAccountDetail.Query(shopCode));
+            return Results.Ok(ApiResponse.Of(new { r.ShopCode, r.Movements }));
         });
     }
 

@@ -25,6 +25,7 @@ public static class EndOfDay
                 return new Summary(false, string.Empty, 0, 0m, 0m, 0m);
 
             var merchant = await session.LoadAsync<Merchant>(cmd.ShopCode, ct);
+            var account = await session.LoadAsync<Account>(cmd.ShopCode, ct) ?? Account.OpenFor(cmd.ShopCode);
             var now = DateTime.UtcNow;
             decimal gross = 0m, deductionTotal = 0m, netTotal = 0m;
             var count = 0;
@@ -40,6 +41,8 @@ public static class EndOfDay
                 var bloke = now.Date.AddDays(merchant?.BlokeGun ?? 0);
 
                 session.Events.Append(key, new TransactionSettled(batch.BatchNo, deduction, net, bloke, now));
+                // Faz 6: net tutar hesaba BLOKELİ eklenir (valör dolunca kullanılabilire geçer).
+                account.AddPending(tx.OrderId, batch.BatchNo, net, bloke, now);
 
                 gross += tx.Amount;
                 deductionTotal += deduction;
@@ -49,6 +52,7 @@ public static class EndOfDay
 
             batch.Close(gross, deductionTotal, netTotal, now);
             session.Store(batch);
+            session.Store(account);
 
             // Yeni açık batch (sonraki işlemler buraya).
             session.Store(Batch.OpenFor(cmd.ShopCode, now));
