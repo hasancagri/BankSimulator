@@ -1,0 +1,5 @@
+[
+  { "Pan": "4111111111110001", "Expiry": "1230", "Cvv": "123", "CardType": 0, "Scenario": "Approve" },
+  { "Pan": "4111111111110002", "Expiry": "1230", "Cvv": "123", "CardType": 0, "Scenario": "InsufficientFunds" },
+  { "Pan": "4111111111110005", "Expiry": "1230", "Cvv": "123", "CardType": 0, "Scenario": "Timeout" }
+]

@@ -1,0 +1,9 @@
+[
+  {
+    "ShopCode": "MAVI0001",
+    "UserCode": "APIUSER",
+    "UserPass": "APIPASS",
+    "SecretKey": "TEST_SECRET_MAVI0001",
+    "SubscriptionKey": "TEST_SUB_MAVI0001"
+  }
+]

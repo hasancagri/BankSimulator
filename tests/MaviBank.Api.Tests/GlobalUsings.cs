@@ -1,3 +1,7 @@
 global using Common;
 global using Common.Results;
+global using MaviBank.Api.Domains.Transactions;
+global using MaviBank.Api.Domains.Transactions.ValueObjects;
+global using MaviBank.Api.Domains.Transactions.InterVpos;
+global using MaviBank.Api.Domains.Cards;
 global using Xunit;
