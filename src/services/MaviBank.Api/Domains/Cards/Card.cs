@@ -18,5 +18,6 @@ public enum CardScenario
 {
     Approve = 0,
     InsufficientFunds = 1,
-    Timeout = 2
+    Timeout = 2,
+    ThreeDFail = 3   // 3D doğrulama başarısız (3DStatus=0); NonSecure'de do-not-honour gibi ele alınır
 }

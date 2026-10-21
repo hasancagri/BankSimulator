@@ -4,10 +4,10 @@
 mews/pos) gönderdiği **NonSecure satış (Auth)** isteğini karşılar, kimliği doğrular, kart senaryosuna göre
 çekimi onaylar/reddeder, sonucu bir işlem defteri olayına yazar ve `;;` ayraçlı InterVpos cevabı döner.
 
-> **002 Faz-2 durumu:** NonSecure Auth + **batch/gün-sonu settlement** (komisyon/bloke/net) + **Void**
-> (açık batch) + **Refund** (kapalı batch, kısmi) + **StatusHistory** (durum sorgu) KURULDU. 3DS/sahte ACS,
-> operasyon API (10 JSON uç + MCP), zamanlanmış kesim, hesaba düşüş ve onboarding SONRAKİ fazlar. Gerçek
-> bakiye/limit YOK (sentinel kart); komisyon basit (taksit→oran; tam matris sonra). (İlke VI)
+> **003 Faz-4 durumu:** NonSecure Auth + batch/gün-sonu + Void/Refund/StatusHistory + **3D Secure (sahte ACS
+> "MaviSecure" + çift-yönlü hash + OkUrl/FailUrl callback)** KURULDU. Operasyon API (10 JSON uç + MCP),
+> zamanlanmış kesim, hesaba düşüş, onboarding ve 3DModel ayrı-completion SONRAKİ fazlar. Gerçek bakiye/limit
+> YOK (sentinel kart); komisyon basit; SMS yok (ICodeDeliveryChannel). (İlke V/VI)
 
 > Domain-önce anlatı (EventStorming altitude). Sağdaki `(…)` = koda atlama köprüsü, süreç değil.
 
@@ -39,6 +39,13 @@ mews/pos) gönderdiği **NonSecure satış (Auth)** isteğini karşılar, kimli�
    batch işleme Refund reddedilir.
 10. **Durum sorgu (StatusHistory).** `TxnType=StatusHistory` (orgOrderId): işlemin güncel hali (durum,
     RefundedAmount, VoidDate) döner `(StatusHistory)` — PG in-doubt/çift-çekim emniyeti; yoksa bulunamadı.
+11. **3D başlat.** SecureType=3DModel/3DPay/3DHost: gelen istek Hash'i doğrulanır (SHA1, ayraçsız) ve bekleyen
+    3D oturumu saklanır `(ThreeDInitiate)` `(InterVposHash)` `(ThreeDSession)`; sahte ACS "MaviSecure" (SMS kod
+    ekranı) HTML döner `(ThreeDPages)`. Kod gerçek SMS değil `(ICodeDeliveryChannel)`.
+12. **3D doğrula + çekim.** ACS kod girişi: doğru kod & senaryo 3D-fail değil → 3DStatus=1 → çekim (Transaction
+    Authorized/Declined + batch); aksi → 3DStatus=0, çekim yok `(ThreeDComplete)`.
+13. **Callback.** Sonuç OkUrl (başarı) / FailUrl'e auto-POST HTML ile döner; alanlar + `HASH`/`HASHPARAMS`
+    (bankanın imzası) `(InterVposHash)` `(ThreeDPages)`; merchant HASH'i SecretKey'le doğrular.
 
 ## Domain kuralları (süreci yöneten değişmezler)
 
@@ -53,12 +60,17 @@ mews/pos) gönderdiği **NonSecure satış (Auth)** isteğini karşılar, kimli�
   birikir, tutarı aşamaz, komisyon geri gelmez). Ayrım işlem durumuyla kodlanır (Authorized=açık, Settled=kapalı).
 - **Settlement (gün sonu).** Açık batch kapanır: `Deduction = round(Gross × oran(taksit), 2)`,
   `Net = Gross − Deduction`, `Bloke = kapanış + BlokeGun`; her işlem Settled, yeni batch açılır.
-- **Kart/sır minimizasyonu (İlke VIII).** Tam PAN/CVV hiçbir kalıcı ortamda (defter/DB/cevap) yok; ham
-  log'da Pan/Cvv2 maskeli. SecretKey seed'de sır, cevapta/log'da görünmez.
+- **3D Secure (İlke V/VI).** İstek Hash'i (SHA1, ayraçsız) doğrulanmazsa ACS gösterilmez (fail-closed).
+  3DStatus=1 (tam 3D) çekim yapar; 0 yapmaz. Callback `HASH`/`HASHPARAMS` bankanın imzasıdır (değerler ':'
+  + SecretKey → SHA1 → base64); merchant doğrular. SMS gerçek değil (`ICodeDeliveryChannel`, 123456).
+- **Kart/sır minimizasyonu (İlke VIII).** Tam PAN/CVV hiçbir kalıcı ortamda (defter/DB/cevap/3D oturumu) yok;
+  ham log'da Pan/Cvv2 maskeli; 3D oturumu yalnız maskeli PAN. SecretKey seed'de + hash girdisinde sır,
+  cevapta/log'da/oturumda görünmez.
 
 ## Sınır (bu BC'nin dokunmadığı)
 
-**3DS/secure akış + sahte ACS, operasyon API (10 JSON uç + MCP) + mutabakat raporları, zamanlanmış gün-sonu
-kesimi (Process/timer), tam komisyon matrisi (kart tipi/MCC/ciro), hesaba düşüş (MoneyOrder) ve onboarding
-bu dilimin DIŞINDADIR** (sonraki fazlar). Üye-işyeri/müşteri sipariş durumu çağıranın (PG/store) işidir —
-MaviBank yalnız otorizasyon + işlem yaşam döngüsü + `;;` sonucu. Gün sonu şimdilik manuel tetik.
+**Operasyon API (10 JSON uç + MCP) + mutabakat raporları, zamanlanmış gün-sonu kesimi (Process/timer), tam
+komisyon matrisi (kart tipi/MCC/ciro), hesaba düşüş (MoneyOrder), onboarding ve 3DModel ayrı-completion adımı
+(şu an 3DPay/3DHost semantiği: callback nihai) bu dilimin DIŞINDADIR** (sonraki fazlar). Üye-işyeri/müşteri
+sipariş durumu çağıranın (PG/store) işidir — MaviBank yalnız otorizasyon + işlem yaşam döngüsü + `;;`/3D
+sonucu. Gün sonu şimdilik manuel tetik.

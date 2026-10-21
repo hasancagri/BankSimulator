@@ -32,6 +32,9 @@ builder.Services.AddMarten(opts =>
                 idx.IsUnique = true;
                 idx.Predicate = "(data ->> 'Status') = '0'";
             });
+
+        // Faz 4: bekleyen 3D oturumu (init ↔ ACS arası), kimlik Sid.
+        opts.Schema.For<MaviBank.Api.Domains.Transactions.ThreeD.ThreeDSession>().Identity(x => x.Sid);
     })
     .IntegrateWithWolverine()
     .ApplyAllDatabaseChangesOnStartup();
@@ -53,6 +56,8 @@ builder.Host.UseWolverine(opts =>
     opts.Discovery.IncludeType(typeof(MaviBank.Api.Domains.Transactions.Features.Commands.VoidTransaction.VoidHandler));
     opts.Discovery.IncludeType(typeof(MaviBank.Api.Domains.Transactions.Features.Commands.Refund.RefundHandler));
     opts.Discovery.IncludeType(typeof(MaviBank.Api.Domains.Transactions.Features.Queries.StatusHistory.StatusHistoryHandler));
+    opts.Discovery.IncludeType(typeof(MaviBank.Api.Domains.Transactions.Features.Commands.ThreeDInitiate.ThreeDInitiateHandler));
+    opts.Discovery.IncludeType(typeof(MaviBank.Api.Domains.Transactions.Features.Commands.ThreeDComplete.ThreeDCompleteHandler));
 });
 
 builder.Services.AddAllDependencies();

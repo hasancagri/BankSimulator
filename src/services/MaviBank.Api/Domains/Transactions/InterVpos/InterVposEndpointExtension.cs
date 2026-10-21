@@ -20,6 +20,19 @@ public static class InterVposEndpointExtension
                 logger.LogInformation("InterVpos istek: {Raw}", MaskRaw(form));
 
                 var txnType = form["TxnType"].ToString();
+                var secureType = form["SecureType"].ToString();
+
+                // 3D Secure (SecureType=3DModel/3DPay/3DHost) → sahte ACS HTML döner (`;;` değil).
+                if (txnType == InterVposConstants.TxnTypeAuth && IsThreeD(secureType))
+                {
+                    var init = await bus.InvokeAsync<ThreeDInitiate.Result>(BuildThreeDCommand(form));
+                    if (!init.Valid)
+                        return Results.Text(SemicolonEncoder.Encode(
+                            ErrorFields(InterVposConstants.ProcAuthError, "3D", init.ErrorMessage ?? "3D hata")),
+                            "text/plain; charset=utf-8");
+                    return Results.Content(ThreeDPages.AcsPage(init), "text/html; charset=utf-8");
+                }
+
                 var fields = txnType switch
                 {
                     InterVposConstants.TxnTypeAuth => await HandleAuth(form, bus),
@@ -35,6 +48,35 @@ public static class InterVposEndpointExtension
             })
             .WithTags("intervpos")
             .AllowAnonymous();
+
+        // Sahte ACS kod girişi sonrası — 3D tamamla → sonucu OkUrl/FailUrl'e auto-POST eden HTML.
+        app.MapPost("/mpi/3DAcs", async (HttpRequest req, IMessageBus bus) =>
+            {
+                var form = await req.ReadFormAsync();
+                var r = await bus.InvokeAsync<ThreeDComplete.Result>(new ThreeDComplete.Command(
+                    form["sid"].ToString(), form["code"].ToString()));
+                return Results.Content(ThreeDPages.CallbackAutoPost(r.TargetUrl, r.CallbackFields), "text/html; charset=utf-8");
+            })
+            .WithTags("intervpos")
+            .AllowAnonymous();
+    }
+
+    private static bool IsThreeD(string secureType)
+        => secureType is "3DModel" or "3DPay" or "3DHost";
+
+    private static ThreeDInitiate.Command BuildThreeDCommand(IFormCollection f)
+    {
+        decimal.TryParse(f["PurchAmount"].ToString(), NumberStyles.Number, CultureInfo.InvariantCulture, out var amount);
+        int.TryParse(f["Currency"].ToString(), out var currency);
+        int.TryParse(f["CardType"].ToString(), out var cardType);
+        var installment = int.TryParse(f["InstallmentCount"].ToString(), out var inst) && inst > 1 ? inst : 0;
+
+        return new ThreeDInitiate.Command(
+            f["ShopCode"].ToString(), f["UserCode"].ToString(), f["UserPass"].ToString(),
+            f["Pan"].ToString(), f["Expiry"].ToString(), f["Cvv2"].ToString(),
+            f["PurchAmount"].ToString(), f["InstallmentCount"].ToString(), f["TxnType"].ToString(),
+            amount, currency, f["OrderId"].ToString(), installment, cardType,
+            f["OkUrl"].ToString(), f["FailUrl"].ToString(), f["Rnd"].ToString(), f["Hash"].ToString());
     }
 
     // --- TxnType=Auth ---
