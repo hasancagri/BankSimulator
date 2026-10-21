@@ -1,0 +1,15 @@
+global using Common;
+global using Common.Domains;
+global using Common.Dependencies;
+global using Common.Results;
+global using Common.Results.BaseClasses;
+global using Marten;
+global using Marten.Newtonsoft;
+global using Weasel.Core;
+global using Wolverine;
+global using Wolverine.Attributes;
+global using Wolverine.Marten;
+global using Wolverine.RabbitMQ;
+global using System.Reflection;
+global using MaviBank.Api.Constants;
+global using MaviBank.Api.Dependencies;

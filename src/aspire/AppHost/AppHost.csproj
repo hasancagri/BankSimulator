@@ -1,0 +1,24 @@
+<Project Sdk="Aspire.AppHost.Sdk/13.3.5">
+
+    <PropertyGroup>
+        <OutputType>Exe</OutputType>
+        <TargetFramework>net10.0</TargetFramework>
+        <ImplicitUsings>enable</ImplicitUsings>
+        <Nullable>enable</Nullable>
+        <UserSecretsId>banksimulator-apphost-0001</UserSecretsId>
+        <!-- Aspire container-registry/compute API'leri önizleme (experimental) → diagnostic'i bastır. -->
+        <NoWarn>$(NoWarn);ASPIRECOMPUTE003</NoWarn>
+    </PropertyGroup>
+
+    <ItemGroup>
+      <ProjectReference Include="..\ServiceDefaults\ServiceDefaults.csproj" />
+      <ProjectReference Include="..\..\services\MaviBank.Api\MaviBank.Api.csproj" />
+    </ItemGroup>
+
+    <ItemGroup>
+      <PackageReference Include="Aspire.Hosting.PostgreSQL" />
+      <PackageReference Include="Aspire.Hosting.Docker" />
+      <PackageReference Include="Aspire.Hosting.RabbitMQ" />
+    </ItemGroup>
+
+</Project>
