@@ -23,6 +23,15 @@ builder.Services.AddMarten(opts =>
         // Referans dokümanlar (seed) — doğal kimlik.
         opts.Schema.For<Merchant>().Identity(x => x.ShopCode);
         opts.Schema.For<Card>().Identity(x => x.Pan);
+
+        // Faz 2: Batch kimliği BatchNo; merchant başına tek AÇIK batch (aktif-tekil, partial unique).
+        // Newtonsoft enum'u JSON'a int yazar → predicate Status=0 (Open).
+        opts.Schema.For<Batch>().Identity(x => x.BatchNo)
+            .Index(x => x.ShopCode, idx =>
+            {
+                idx.IsUnique = true;
+                idx.Predicate = "(data ->> 'Status') = '0'";
+            });
     })
     .IntegrateWithWolverine()
     .ApplyAllDatabaseChangesOnStartup();
@@ -39,8 +48,11 @@ builder.Host.UseWolverine(opts =>
     opts.Policies.UseDurableLocalQueues();
     opts.Discovery.IncludeAssembly(Assembly.GetExecutingAssembly());
     // Nested *Handler keşif güvencesi (ad-son-eki tarama nested'i atlayabilir — CLAUDE.md tuzağı).
-    opts.Discovery.IncludeType(
-        typeof(MaviBank.Api.Domains.Transactions.Features.Commands.Authorize.AuthorizeHandler));
+    opts.Discovery.IncludeType(typeof(MaviBank.Api.Domains.Transactions.Features.Commands.Authorize.AuthorizeHandler));
+    opts.Discovery.IncludeType(typeof(MaviBank.Api.Domains.Transactions.Features.Commands.EndOfDay.EndOfDayHandler));
+    opts.Discovery.IncludeType(typeof(MaviBank.Api.Domains.Transactions.Features.Commands.VoidTransaction.VoidHandler));
+    opts.Discovery.IncludeType(typeof(MaviBank.Api.Domains.Transactions.Features.Commands.Refund.RefundHandler));
+    opts.Discovery.IncludeType(typeof(MaviBank.Api.Domains.Transactions.Features.Queries.StatusHistory.StatusHistoryHandler));
 });
 
 builder.Services.AddAllDependencies();
@@ -65,7 +77,10 @@ await using (var seedScope = app.Services.CreateAsyncScope())
 app.MapDefaultEndpoints();
 app.MapScalarDocumentation();
 
-// Faz 1: InterVpos ödeme yüzü (POST /mpi/Default.aspx, TxnType=Auth NonSecure).
+// InterVpos ödeme yüzü (POST /mpi/Default.aspx — Auth/Void/Refund/StatusHistory TxnType dispatch).
 app.AddInterVposEndpoints();
+
+// Faz 2: dev manuel gün-sonu tetiği (operasyon API + MCP Faz 3).
+MaviBank.Api.Ops.EndOfDayEndpointExtension.AddOpsEndpoints(app);
 
 await app.RunAsync();

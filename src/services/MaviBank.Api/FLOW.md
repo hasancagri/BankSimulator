@@ -4,8 +4,10 @@
 mews/pos) gönderdiği **NonSecure satış (Auth)** isteğini karşılar, kimliği doğrular, kart senaryosuna göre
 çekimi onaylar/reddeder, sonucu bir işlem defteri olayına yazar ve `;;` ayraçlı InterVpos cevabı döner.
 
-> **001 Faz-1 durumu:** yalnız **NonSecure Auth**. 3DS, Void/Refund/StatusHistory, batch/gün-sonu/komisyon,
-> operasyon API (10 uç) ve onboarding SONRAKİ fazlardır. Gerçek bakiye/limit YOK (sentinel kart; İlke VI).
+> **002 Faz-2 durumu:** NonSecure Auth + **batch/gün-sonu settlement** (komisyon/bloke/net) + **Void**
+> (açık batch) + **Refund** (kapalı batch, kısmi) + **StatusHistory** (durum sorgu) KURULDU. 3DS/sahte ACS,
+> operasyon API (10 JSON uç + MCP), zamanlanmış kesim, hesaba düşüş ve onboarding SONRAKİ fazlar. Gerçek
+> bakiye/limit YOK (sentinel kart); komisyon basit (taksit→oran; tam matris sonra). (İlke VI)
 
 > Domain-önce anlatı (EventStorming altitude). Sağdaki `(…)` = koda atlama köprüsü, süreç değil.
 
@@ -21,11 +23,22 @@ mews/pos) gönderdiği **NonSecure satış (Auth)** isteğini karşılar, kimli�
    varsa ikinci işlem doğmaz; mevcut sonuç aynen döner (çift çekim önleme) `(Authorize.AuthorizeHandler)`.
 4. **Çekim kararı (sentinel).** Kart senaryosu çekim sonucunu belirler — onay / limit-yetersiz(51) /
    timeout(91) / bilinmeyen-kart(05); gerçek bakiye yok, deterministik `(ChargeScenarioEngine)`.
-5. **İşlem defterine yazılır.** Onayda `TransactionAuthorized` (benzersiz TransId + AuthCode), issuer-reddinde
-   `TransactionDeclined` olayı event stream'e eklenir; kart verisi değil yalnız maskeli PAN tutulur
-   `(Transaction)`.
-6. **`;;` cevap üretilir.** Sonuç sıralı InterVpos alanlarına çevrilip `key=value;;...` (JSON değil) olarak
-   text/plain döner `(SemicolonEncoder)`.
+5. **İşlem defterine yazılır + açık batch'e bağlanır.** Onayda işlem açık `(Batch)`'e eklenir (yoksa yeni
+   açık batch — merchant başına tek) ve `TransactionAuthorized` (BatchNo + TransId + AuthCode); issuer-
+   reddinde `TransactionDeclined` olayı event stream'e eklenir; yalnız maskeli PAN `(Transaction)`.
+6. **`;;` cevap üretilir.** Sonuç sıralı InterVpos alanlarına `key=value;;...` (JSON değil) text/plain
+   `(SemicolonEncoder)`. İstek `TxnType`'a göre yönlendirilir `(InterVposEndpointExtension)`.
+7. **İptal (Void) — açık batch.** `TxnType=Void` (orgOrderId): işlem hâlâ açık batch'te (Authorized) ise iz
+   bırakmadan ters çevrilir `(VoidTransaction)` → `TransactionVoided`, açık batch'ten çıkar; komisyon doğmaz.
+   Gün sonu görmüş (Settled) işleme Void reddedilir.
+8. **Gün sonu (settlement) — manuel tetik.** `POST /ops/end-of-day` açık batch'i kapatır: her onaylı işlem
+   için komisyon (taksit oranı) düşülür, net + bloke/valör hesaplanır `(EndOfDay)` → `TransactionSettled`;
+   batch Closed + toplamlar; yeni açık batch açılır.
+9. **İade (Refund) — kapalı batch.** `TxnType=Refund` (orgOrderId + tutar): işlem Settled ise kısmi iade
+   `(Refund)` → `TransactionRefunded` (RefundedAmount birikir, tutarı aşamaz); komisyon geri gelmez. Açık
+   batch işleme Refund reddedilir.
+10. **Durum sorgu (StatusHistory).** `TxnType=StatusHistory` (orgOrderId): işlemin güncel hali (durum,
+    RefundedAmount, VoidDate) döner `(StatusHistory)` — PG in-doubt/çift-çekim emniyeti; yoksa bulunamadı.
 
 ## Domain kuralları (süreci yöneten değişmezler)
 
@@ -35,12 +48,17 @@ mews/pos) gönderdiği **NonSecure satış (Auth)** isteğini karşılar, kimli�
   bakiye/limit/dış-servis (SMS/kart-ağı) yok.
 - **Fail-closed kimlik (İlke VII).** Geçersiz credential işlem defterini DEĞİŞTİRMEZ (Transaction açılmaz).
 - **İdempotency.** `(ShopCode, OrderId)` tekil; tekrar eden Auth yeni işlem doğurmaz, ilk sonucu döner.
+- **Batch yaşam döngüsü (açık/kapalı).** Onaylı işlem açık batch'e yazılır (merchant başına tek açık).
+  **Void yalnız açık batch** (iz bırakmaz, komisyon yok); **Refund yalnız kapalı batch** (settled; kısmi
+  birikir, tutarı aşamaz, komisyon geri gelmez). Ayrım işlem durumuyla kodlanır (Authorized=açık, Settled=kapalı).
+- **Settlement (gün sonu).** Açık batch kapanır: `Deduction = round(Gross × oran(taksit), 2)`,
+  `Net = Gross − Deduction`, `Bloke = kapanış + BlokeGun`; her işlem Settled, yeni batch açılır.
 - **Kart/sır minimizasyonu (İlke VIII).** Tam PAN/CVV hiçbir kalıcı ortamda (defter/DB/cevap) yok; ham
   log'da Pan/Cvv2 maskeli. SecretKey seed'de sır, cevapta/log'da görünmez.
 
 ## Sınır (bu BC'nin dokunmadığı)
 
-**3DS/secure akış + sahte ACS, Void/Refund/StatusHistory, batch/gün-sonu/komisyon/bloke, operasyon API (10
-uç) + mutabakat raporları, hesaba düşüş, onboarding ve operasyon MCP yüzü bu dilimin DIŞINDADIR** (sonraki
-fazlar). Üye-işyeri/müşteri sipariş durumu çağıranın (PG/store) işidir — MaviBank yalnız otorizasyonu ve
-`;;` sonucu döndürür. Para hareketi/ledger simülasyonu Faz 6.
+**3DS/secure akış + sahte ACS, operasyon API (10 JSON uç + MCP) + mutabakat raporları, zamanlanmış gün-sonu
+kesimi (Process/timer), tam komisyon matrisi (kart tipi/MCC/ciro), hesaba düşüş (MoneyOrder) ve onboarding
+bu dilimin DIŞINDADIR** (sonraki fazlar). Üye-işyeri/müşteri sipariş durumu çağıranın (PG/store) işidir —
+MaviBank yalnız otorizasyon + işlem yaşam döngüsü + `;;` sonucu. Gün sonu şimdilik manuel tetik.

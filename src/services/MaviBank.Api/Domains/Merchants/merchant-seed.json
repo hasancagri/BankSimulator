@@ -4,6 +4,9 @@
     "UserCode": "APIUSER",
     "UserPass": "APIPASS",
     "SecretKey": "TEST_SECRET_MAVI0001",
-    "SubscriptionKey": "TEST_SUB_MAVI0001"
+    "SubscriptionKey": "TEST_SUB_MAVI0001",
+    "CommissionRates": { "1": 0.0179, "3": 0.0219, "6": 0.0269 },
+    "DefaultCommissionRate": 0.0179,
+    "BlokeGun": 1
   }
 ]

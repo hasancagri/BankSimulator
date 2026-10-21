@@ -19,3 +19,4 @@ global using MaviBank.Api.Domains.Transactions.ValueObjects;
 global using MaviBank.Api.Domains.Transactions.InterVpos;
 global using MaviBank.Api.Domains.Merchants;
 global using MaviBank.Api.Domains.Cards;
+global using MaviBank.Api.Domains.Batches;

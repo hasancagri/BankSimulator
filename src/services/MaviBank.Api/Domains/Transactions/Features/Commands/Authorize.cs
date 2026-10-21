@@ -44,13 +44,21 @@ public static class Authorize
             var card = await session.LoadAsync<Card>(cmd.Pan, ct);
             var outcome = engine.Evaluate(card);
             var maskedPan = SemicolonEncoder.MaskPan(cmd.Pan);
+            var now = DateTime.UtcNow;
 
             if (outcome.IsApproved)
             {
+                // Faz 2: onaylı işlem açık batch'e bağlanır (yoksa yeni açık batch açılır — aktif-tekil).
+                var batch = await session.Query<Batch>()
+                    .Where(b => b.ShopCode == cmd.ShopCode && b.Status == BatchStatus.Open)
+                    .FirstOrDefaultAsync(ct) ?? Batch.OpenFor(cmd.ShopCode, now);
+                batch.AddTransaction(streamKey);
+                session.Store(batch);
+
                 var transId = NewTransId();
                 session.Events.StartStream<Transaction>(streamKey, new TransactionAuthorized(
-                    cmd.ShopCode, cmd.OrderId, transId, outcome.AuthCode!, cmd.Amount, cmd.Currency,
-                    cmd.Installment, maskedPan, cmd.CardType, DateTime.UtcNow));
+                    cmd.ShopCode, cmd.OrderId, batch.BatchNo, transId, outcome.AuthCode!, cmd.Amount,
+                    cmd.Currency, cmd.Installment, maskedPan, cmd.CardType, now));
                 return new Result(outcome, cmd.OrderId, transId);
             }
 

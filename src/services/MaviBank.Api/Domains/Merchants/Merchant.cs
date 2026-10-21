@@ -11,4 +11,13 @@ public class Merchant
     public string UserPass { get; set; } = string.Empty;
     public string SecretKey { get; set; } = string.Empty;
     public string SubscriptionKey { get; set; } = string.Empty;
+
+    // Faz 2 komisyon/bloke (basit model; tam matris — kart tipi/MCC/ciro, Ders 9 — sonraki faz).
+    public Dictionary<int, decimal> CommissionRates { get; set; } = new(); // taksit → oran
+    public decimal DefaultCommissionRate { get; set; }                     // tabloda yoksa
+    public int BlokeGun { get; set; }                                      // valör gün sayısı
+
+    /// <summary>Taksit için komisyon oranı (tabloda yoksa varsayılan).</summary>
+    public decimal RateFor(int installment)
+        => CommissionRates.TryGetValue(installment, out var r) ? r : DefaultCommissionRate;
 }
