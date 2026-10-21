@@ -1,4 +1,3 @@
-using MaviBank.Api.Domains.Onboarding;
 
 namespace MaviBank.Api.Tests;
 

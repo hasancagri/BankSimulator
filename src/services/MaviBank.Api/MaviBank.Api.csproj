@@ -22,16 +22,14 @@
     </ItemGroup>
 
     <ItemGroup>
-        <!-- Seed (Merchant/Card) startup'ta embedded JSON olarak okunur (BinCardSeeder deseni). -->
-        <Content Remove="Domains/Merchants/merchant-seed.json" />
-        <EmbeddedResource Include="Domains/Merchants/merchant-seed.json" />
-        <Content Remove="Domains/Cards/card-seed.json" />
-        <EmbeddedResource Include="Domains/Cards/card-seed.json" />
+        <ProjectReference Include="..\..\aspire\ServiceDefaults\ServiceDefaults.csproj" />
+        <ProjectReference Include="..\..\others\Simulator.Core\Simulator.Core.csproj" />
+        <ProjectReference Include="..\..\others\Simulator.InterVpos\Simulator.InterVpos.csproj" />
     </ItemGroup>
 
     <ItemGroup>
-        <ProjectReference Include="..\..\aspire\ServiceDefaults\ServiceDefaults.csproj" />
-        <ProjectReference Include="..\..\others\Common\Common.csproj" />
+        <Content Remove="Domains/Merchants/merchant-seed.json" />
+        <EmbeddedResource Include="Domains/Merchants/merchant-seed.json" />
     </ItemGroup>
 
 </Project>

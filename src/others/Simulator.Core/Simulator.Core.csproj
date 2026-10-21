@@ -1,0 +1,29 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+    <PropertyGroup>
+        <TargetFramework>net10.0</TargetFramework>
+        <Nullable>enable</Nullable>
+        <ImplicitUsings>enable</ImplicitUsings>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <FrameworkReference Include="Microsoft.AspNetCore.App" />
+        <PackageReference Include="Marten" />
+        <PackageReference Include="Marten.Newtonsoft" />
+        <PackageReference Include="Newtonsoft.Json" />
+        <PackageReference Include="WolverineFx" />
+        <PackageReference Include="WolverineFx.Marten" />
+        <PackageReference Include="Scrutor" />
+    </ItemGroup>
+
+    <ItemGroup>
+        <ProjectReference Include="..\Common\Common.csproj" />
+    </ItemGroup>
+
+    <ItemGroup>
+        <!-- Test kartları tüm bankalarda ortak (Core embedded). -->
+        <Content Remove="Domains/Cards/card-seed.json" />
+        <EmbeddedResource Include="Domains/Cards/card-seed.json" />
+    </ItemGroup>
+
+</Project>

@@ -1,0 +1,13 @@
+[
+  {
+    "ShopCode": "SARI0001",
+    "BankCode": "SARIBANK",
+    "UserCode": "APIUSER2",
+    "UserPass": "SARIPASS",
+    "SecretKey": "TEST_SECRET_SARI0001",
+    "SubscriptionKey": "TEST_SUB_SARI0001",
+    "CommissionRates": { "1": 0.0219, "3": 0.0269, "6": 0.0319 },
+    "DefaultCommissionRate": 0.0219,
+    "BlokeGun": 2
+  }
+]

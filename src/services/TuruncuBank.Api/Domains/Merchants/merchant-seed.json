@@ -1,0 +1,13 @@
+[
+  {
+    "ShopCode": "TURU0001",
+    "BankCode": "TURUNCUBANK",
+    "UserCode": "APIUSER3",
+    "UserPass": "TURUPASS",
+    "SecretKey": "TEST_SECRET_TURU0001",
+    "SubscriptionKey": "TEST_SUB_TURU0001",
+    "CommissionRates": { "1": 0.0199, "3": 0.0249, "6": 0.0299 },
+    "DefaultCommissionRate": 0.0199,
+    "BlokeGun": 1
+  }
+]

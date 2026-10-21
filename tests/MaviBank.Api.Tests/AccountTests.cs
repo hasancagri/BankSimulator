@@ -1,4 +1,3 @@
-using MaviBank.Api.Domains.Accounts;
 
 namespace MaviBank.Api.Tests;
 

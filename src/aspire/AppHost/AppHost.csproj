@@ -13,6 +13,8 @@
     <ItemGroup>
       <ProjectReference Include="..\ServiceDefaults\ServiceDefaults.csproj" />
       <ProjectReference Include="..\..\services\MaviBank.Api\MaviBank.Api.csproj" />
+      <ProjectReference Include="..\..\services\SariBank.Api\SariBank.Api.csproj" />
+      <ProjectReference Include="..\..\services\TuruncuBank.Api\TuruncuBank.Api.csproj" />
     </ItemGroup>
 
     <ItemGroup>

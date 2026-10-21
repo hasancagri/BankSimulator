@@ -17,13 +17,13 @@ public class SemicolonEncoderTests
 
     [Fact]
     public void MaskPan_Ilk6Son4Gorunur()
-        => Assert.Equal("411111******0001", SemicolonEncoder.MaskPan("4111111111110001"));
+        => Assert.Equal("411111******0001", CardMasking.MaskPan("4111111111110001"));
 
     [Fact]
     public void MaskPan_KisaGirdi_TumuYildiz()
-        => Assert.Equal("******", SemicolonEncoder.MaskPan("123456"));
+        => Assert.Equal("******", CardMasking.MaskPan("123456"));
 
     [Fact]
     public void MaskCvv_TumuYildiz()
-        => Assert.Equal("***", SemicolonEncoder.MaskCvv("123"));
+        => Assert.Equal("***", CardMasking.MaskCvv("123"));
 }

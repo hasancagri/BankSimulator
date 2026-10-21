@@ -15,7 +15,8 @@
     </ItemGroup>
 
     <ItemGroup>
-        <ProjectReference Include="..\..\src\services\MaviBank.Api\MaviBank.Api.csproj" />
+        <ProjectReference Include="..\..\src\others\Simulator.Core\Simulator.Core.csproj" />
+        <ProjectReference Include="..\..\src\others\Simulator.InterVpos\Simulator.InterVpos.csproj" />
     </ItemGroup>
 
 </Project>

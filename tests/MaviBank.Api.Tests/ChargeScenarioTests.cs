@@ -13,7 +13,7 @@ public class ChargeScenarioTests
         var o = Engine.Evaluate(CardWith(CardScenario.Approve));
         Assert.True(o.IsApproved);
         Assert.True(o.CreatesTransaction);
-        Assert.Equal(InterVposConstants.ProcApproved, o.ProcReturnCode);
+        Assert.Equal(ResponseCodes.Approved, o.ProcReturnCode);
         Assert.False(string.IsNullOrWhiteSpace(o.AuthCode));
     }
 
@@ -23,7 +23,7 @@ public class ChargeScenarioTests
         var o = Engine.Evaluate(CardWith(CardScenario.InsufficientFunds));
         Assert.False(o.IsApproved);
         Assert.True(o.CreatesTransaction);                       // issuer-red bir denemedir (defterde kalır)
-        Assert.Equal(InterVposConstants.ProcInsufficientFunds, o.ProcReturnCode);
+        Assert.Equal(ResponseCodes.InsufficientFunds, o.ProcReturnCode);
     }
 
     [Fact]
@@ -31,7 +31,7 @@ public class ChargeScenarioTests
     {
         var o = Engine.Evaluate(CardWith(CardScenario.Timeout));
         Assert.False(o.IsApproved);
-        Assert.Equal(InterVposConstants.ProcTimeout, o.ProcReturnCode);
+        Assert.Equal(ResponseCodes.Timeout, o.ProcReturnCode);
     }
 
     [Fact]
@@ -39,6 +39,6 @@ public class ChargeScenarioTests
     {
         var o = Engine.Evaluate(null);
         Assert.False(o.IsApproved);
-        Assert.Equal(InterVposConstants.ProcDoNotHonour, o.ProcReturnCode);
+        Assert.Equal(ResponseCodes.DoNotHonour, o.ProcReturnCode);
     }
 }

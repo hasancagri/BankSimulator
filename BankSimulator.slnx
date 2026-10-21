@@ -5,9 +5,13 @@
   </Folder>
   <Folder Name="/src/others/">
     <Project Path="src/others/Common/Common.csproj" />
+    <Project Path="src/others/Simulator.Core/Simulator.Core.csproj" />
+    <Project Path="src/others/Simulator.InterVpos/Simulator.InterVpos.csproj" />
   </Folder>
   <Folder Name="/src/services/">
     <Project Path="src/services/MaviBank.Api/MaviBank.Api.csproj" />
+    <Project Path="src/services/SariBank.Api/SariBank.Api.csproj" />
+    <Project Path="src/services/TuruncuBank.Api/TuruncuBank.Api.csproj" />
   </Folder>
   <Folder Name="/tests/">
     <Project Path="tests/MaviBank.Api.Tests/MaviBank.Api.Tests.csproj" />

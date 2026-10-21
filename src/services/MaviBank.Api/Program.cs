@@ -3,113 +3,56 @@ var builder = WebApplication.CreateBuilder(args);
 builder.AddServiceDefaults();
 builder.AddOpenApiDocumentation();
 
-// Tek BC = kendi Postgres şeması (Aspire bankDb conn-string'i). Marten Newtonsoft private-setter + nonpublic
-// ctor (aggregate/entity deserializasyonu). Transaction event stream + düz doküman (Merchant/Card) birlikte.
-var bankDb = builder.Configuration.GetConnectionString("bankDb")!;
+// MaviBank host — kendi şeması (mavibank), InterVpos facade. Core domain + InterVpos facade paylaşılan lib.
+var bankDb = builder.Configuration.GetConnectionString("mavibankDb")!;
 builder.Services.AddMarten(opts =>
     {
         opts.DatabaseSchemaName = SchemaConstants.BankSchemaName;
         opts.Connection(bankDb);
         opts.UseNewtonsoftForSerialization(
             nonPublicMembersStorage: NonPublicMembersStorage.NonPublicSetters,
-            configure: s =>
-            {
-                s.ConstructorHandling = Newtonsoft.Json.ConstructorHandling.AllowNonPublicDefaultConstructor;
-            });
-
-        // İşlem defteri event stream kimliği string: `ShopCode:OrderId` (deterministik idempotency).
-        opts.Events.StreamIdentity = JasperFx.Events.StreamIdentity.AsString;
-
-        // Referans dokümanlar (seed) — doğal kimlik.
-        opts.Schema.For<Merchant>().Identity(x => x.ShopCode);
-        opts.Schema.For<Card>().Identity(x => x.Pan);
-
-        // Faz 2: Batch kimliği BatchNo; merchant başına tek AÇIK batch (aktif-tekil, partial unique).
-        // Newtonsoft enum'u JSON'a int yazar → predicate Status=0 (Open).
-        opts.Schema.For<Batch>().Identity(x => x.BatchNo)
-            .Index(x => x.ShopCode, idx =>
-            {
-                idx.IsUnique = true;
-                idx.Predicate = "(data ->> 'Status') = '0'";
-            });
-
-        // Faz 4: bekleyen 3D oturumu (init ↔ ACS arası), kimlik Sid.
-        opts.Schema.For<MaviBank.Api.Domains.Transactions.ThreeD.ThreeDSession>().Identity(x => x.Sid);
-
-        // Faz 6: POS alacak hesabı, kimlik ShopCode.
-        opts.Schema.For<Account>().Identity(x => x.ShopCode);
-
-        // Faz 7: üye-işyeri başvurusu, kimlik Id.
-        opts.Schema.For<MerchantApplication>().Identity(x => x.Id);
+            configure: s => { s.ConstructorHandling = Newtonsoft.Json.ConstructorHandling.AllowNonPublicDefaultConstructor; });
+        opts.ConfigureCoreSchema();
     })
     .IntegrateWithWolverine()
     .ApplyAllDatabaseChangesOnStartup();
 
 builder.Host.UseWolverine(opts =>
 {
-    // Dev: tek düğüm (Solo) — leader election/node-agent koordinasyonu kapalı.
     if (builder.Environment.IsDevelopment())
         opts.Durability.Mode = DurabilityMode.Solo;
 
-    opts.UseRabbitMq(builder.Configuration.GetConnectionString("rabbitmq")!)
-        .AutoProvision();
-
+    opts.UseRabbitMq(builder.Configuration.GetConnectionString("rabbitmq")!).AutoProvision();
     opts.Policies.UseDurableLocalQueues();
     opts.Discovery.IncludeAssembly(Assembly.GetExecutingAssembly());
-    // Nested *Handler keşif güvencesi (ad-son-eki tarama nested'i atlayabilir — CLAUDE.md tuzağı).
-    opts.Discovery.IncludeType(typeof(MaviBank.Api.Domains.Transactions.Features.Commands.Authorize.AuthorizeHandler));
-    opts.Discovery.IncludeType(typeof(MaviBank.Api.Domains.Transactions.Features.Commands.EndOfDay.EndOfDayHandler));
-    opts.Discovery.IncludeType(typeof(MaviBank.Api.Domains.Transactions.Features.Commands.VoidTransaction.VoidHandler));
-    opts.Discovery.IncludeType(typeof(MaviBank.Api.Domains.Transactions.Features.Commands.Refund.RefundHandler));
-    opts.Discovery.IncludeType(typeof(MaviBank.Api.Domains.Transactions.Features.Queries.StatusHistory.StatusHistoryHandler));
-    opts.Discovery.IncludeType(typeof(MaviBank.Api.Domains.Transactions.Features.Commands.ThreeDInitiate.ThreeDInitiateHandler));
-    opts.Discovery.IncludeType(typeof(MaviBank.Api.Domains.Transactions.Features.Commands.ThreeDComplete.ThreeDCompleteHandler));
-    opts.Discovery.IncludeType(typeof(MaviBank.Api.Domains.Transactions.Features.Commands.ThreeDModelComplete.ThreeDModelCompleteHandler));
-    opts.Discovery.IncludeType(typeof(MaviBank.Api.Domains.Transactions.Features.Queries.GetBatchSummary.GetBatchSummaryHandler));
-    opts.Discovery.IncludeType(typeof(MaviBank.Api.Domains.Transactions.Features.Queries.GetBatchDetail.GetBatchDetailHandler));
-    opts.Discovery.IncludeType(typeof(MaviBank.Api.Domains.Transactions.Features.Queries.GetTransactionList.GetTransactionListHandler));
-    opts.Discovery.IncludeType(typeof(MaviBank.Api.Domains.Accounts.Features.Commands.ReleaseBloke.ReleaseBlokeHandler));
-    opts.Discovery.IncludeType(typeof(MaviBank.Api.Domains.Accounts.Features.Queries.GetAccountDetail.GetAccountDetailHandler));
-    opts.Discovery.IncludeType(typeof(MaviBank.Api.Domains.Onboarding.Features.Commands.SubmitApplication.SubmitApplicationHandler));
-    opts.Discovery.IncludeType(typeof(MaviBank.Api.Domains.Onboarding.Features.Commands.AdvanceApplication.AdvanceApplicationHandler));
-    opts.Discovery.IncludeType(typeof(MaviBank.Api.Domains.Onboarding.Features.Commands.RejectApplication.RejectApplicationHandler));
-    opts.Discovery.IncludeType(typeof(MaviBank.Api.Domains.Onboarding.Features.Commands.ActivateApplication.ActivateApplicationHandler));
-    opts.Discovery.IncludeType(typeof(MaviBank.Api.Domains.Merchants.Features.Commands.ReissueSecretKey.ReissueSecretKeyHandler));
+    opts.IncludeCoreHandlers();
+    opts.IncludeInterVposHandlers();
 });
 
 builder.Services.AddAllDependencies();
 
-// 001: InterVpos/PaymentLink Options.
-builder.Services.AddOptions<MaviBank.Api.Options.InterVposOptions>()
-    .BindConfiguration(nameof(MaviBank.Api.Options.InterVposOptions))
+builder.Services.AddOptions<InterVposOptions>()
+    .BindConfiguration(nameof(InterVposOptions))
     .ValidateDataAnnotations().ValidateOnStart();
-builder.Services.AddSingleton<MaviBank.Api.Options.InterVposOptions>(sp =>
-    sp.GetRequiredService<Microsoft.Extensions.Options.IOptions<MaviBank.Api.Options.InterVposOptions>>().Value);
+builder.Services.AddSingleton<InterVposOptions>(sp =>
+    sp.GetRequiredService<Microsoft.Extensions.Options.IOptions<InterVposOptions>>().Value);
 
 var app = builder.Build();
 
-// Startup seed (Merchant/Card referans dokümanları — embedded JSON, idempotent).
 await using (var seedScope = app.Services.CreateAsyncScope())
 {
-    var seedSession = seedScope.ServiceProvider.GetRequiredService<IDocumentSession>();
-    await MerchantSeeder.SeedAsync(seedSession);
-    await CardSeeder.SeedAsync(seedSession);
+    var s = seedScope.ServiceProvider.GetRequiredService<IDocumentSession>();
+    await MerchantSeeder.SeedAsync(s, Assembly.GetExecutingAssembly()); // bu host'un merchant seed'i (MAVI)
+    await CardSeeder.SeedAsync(s);                                      // ortak test kartları (Core)
 }
 
 app.MapDefaultEndpoints();
 app.MapScalarDocumentation();
 
-// InterVpos ödeme yüzü (POST /mpi/Default.aspx — Auth/Void/Refund/StatusHistory TxnType dispatch).
-app.AddInterVposEndpoints();
-
-// Faz 2: dev manuel gün-sonu tetiği.
-MaviBank.Api.Ops.EndOfDayEndpointExtension.AddOpsEndpoints(app);
-
-// Faz 3: API Market operasyon yüzü (JSON zarf + SubscriptionKey; mutabakat okuma). MCP mount = AgentPlatform.
-MaviBank.Api.Ops.ApiMarket.OperationEndpointExtension.AddOperationEndpoints(app);
-
-// Faz 7: onboarding (başvuru + admin değerlendirme + aktivasyon/credential reveal) + panel (SecretKey yenile).
-app.AddOnboardingEndpoints();
-app.AddMerchantPanelEndpoints();
+app.AddInterVposEndpoints();        // /mpi/Default.aspx + /mpi/3DAcs (InterVpos facade)
+app.AddOperationEndpoints();        // /api/* (operasyon API)
+app.AddOpsEndpoints();              // /ops/* (gün sonu, release-bloke)
+app.AddOnboardingEndpoints();       // /onboarding/*
+app.AddMerchantPanelEndpoints();    // /panel/*
 
 await app.RunAsync();
