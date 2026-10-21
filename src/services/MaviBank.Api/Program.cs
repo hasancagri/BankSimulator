@@ -38,6 +38,9 @@ builder.Services.AddMarten(opts =>
 
         // Faz 6: POS alacak hesabı, kimlik ShopCode.
         opts.Schema.For<Account>().Identity(x => x.ShopCode);
+
+        // Faz 7: üye-işyeri başvurusu, kimlik Id.
+        opts.Schema.For<MerchantApplication>().Identity(x => x.Id);
     })
     .IntegrateWithWolverine()
     .ApplyAllDatabaseChangesOnStartup();
@@ -65,6 +68,10 @@ builder.Host.UseWolverine(opts =>
     opts.Discovery.IncludeType(typeof(MaviBank.Api.Domains.Transactions.Features.Queries.GetBatchDetail.GetBatchDetailHandler));
     opts.Discovery.IncludeType(typeof(MaviBank.Api.Domains.Accounts.Features.Commands.ReleaseBloke.ReleaseBlokeHandler));
     opts.Discovery.IncludeType(typeof(MaviBank.Api.Domains.Accounts.Features.Queries.GetAccountDetail.GetAccountDetailHandler));
+    opts.Discovery.IncludeType(typeof(MaviBank.Api.Domains.Onboarding.Features.Commands.SubmitApplication.SubmitApplicationHandler));
+    opts.Discovery.IncludeType(typeof(MaviBank.Api.Domains.Onboarding.Features.Commands.AdvanceApplication.AdvanceApplicationHandler));
+    opts.Discovery.IncludeType(typeof(MaviBank.Api.Domains.Onboarding.Features.Commands.RejectApplication.RejectApplicationHandler));
+    opts.Discovery.IncludeType(typeof(MaviBank.Api.Domains.Onboarding.Features.Commands.ActivateApplication.ActivateApplicationHandler));
 });
 
 builder.Services.AddAllDependencies();
@@ -97,5 +104,8 @@ MaviBank.Api.Ops.EndOfDayEndpointExtension.AddOpsEndpoints(app);
 
 // Faz 3: API Market operasyon yüzü (JSON zarf + SubscriptionKey; mutabakat okuma). MCP mount = AgentPlatform.
 MaviBank.Api.Ops.ApiMarket.OperationEndpointExtension.AddOperationEndpoints(app);
+
+// Faz 7: onboarding (başvuru + admin değerlendirme + aktivasyon/credential reveal).
+app.AddOnboardingEndpoints();
 
 await app.RunAsync();

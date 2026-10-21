@@ -64,6 +64,9 @@ mews/pos) gönderdiği **NonSecure satış (Auth)** isteğini karşılar, kimli�
 - **Hesaba düşüş (Faz 6).** Valör (bloke) süresi dolunca blokeli tutar kullanılabilire geçer `(ReleaseBloke
   → Account.ReleaseMatured)` ("POS alacağı hesaba düştü"); dev tetik `/ops/release-bloke`, zamanlanmış
   Process seam. Operasyon: `GetPosAccountDetail`/`GetAccountTransactionList`.
+- **Onboarding (Faz 7).** Üye-işyeri başvuru durum makinesi `(MerchantApplication)`: Received→RiskScreening→
+  SiteReview→OfferMade→ContractSigned→(Activate) Activated | Rejected. Aktivasyonda teknik credential üretilir
+  ve Merchant doğar (ödeme yüzü tanır); credential bir kez reveal edilir. Sertifikasyon kapısı/panel/IP-whitelist seam.
 - **3D Secure (İlke V/VI).** İstek Hash'i (SHA1, ayraçsız) doğrulanmazsa ACS gösterilmez (fail-closed).
   3DStatus=1 (tam 3D) çekim yapar; 0 yapmaz. Callback `HASH`/`HASHPARAMS` bankanın imzasıdır (değerler ':'
   + SecretKey → SHA1 → base64); merchant doğrular. SMS gerçek değil (`ICodeDeliveryChannel`, 123456).
@@ -76,6 +79,6 @@ mews/pos) gönderdiği **NonSecure satış (Auth)** isteğini karşılar, kimli�
 **Operasyon API mutabakat çifti KURULDU** (`POST /api/GetPosBatchSummary` + `/GetPosBatchDetail`, JSON zarf +
 `SubscriptionKey`; pull modeli — merchant sorar). Kalan operasyon uçları (TransactionList/AccountDetail/
 EndOfDayList...) + **MCP yüzü (AgentPlatform gateway mount + AP IdP scope)**, zamanlanmış gün-sonu kesimi
-(Process/timer), tam komisyon matrisi (kart tipi/MCC/ciro), onboarding ve 3DModel
+(Process/timer), tam komisyon matrisi (kart tipi/MCC/ciro), sertifikasyon kapısı/panel/IP-whitelist ve 3DModel
 ayrı-completion (şu an 3DPay/3DHost semantiği) bu dilimin DIŞINDADIR (sonraki fazlar). Üye-işyeri/müşteri
 sipariş durumu çağıranın (PG/store) işidir. Gün sonu şimdilik manuel tetik.
