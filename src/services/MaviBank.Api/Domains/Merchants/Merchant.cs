@@ -7,6 +7,7 @@ namespace MaviBank.Api.Domains.Merchants;
 public class Merchant
 {
     public string ShopCode { get; set; } = string.Empty;
+    public string BankCode { get; set; } = string.Empty; // onboarding/sahibi banka (MAVIBANK/SARIBANK...) — etiket
     public string UserCode { get; set; } = string.Empty;
     public string UserPass { get; set; } = string.Empty;
     public string SecretKey { get; set; } = string.Empty;
