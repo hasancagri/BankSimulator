@@ -1,0 +1,140 @@
+# BankSimulator k8s — ns banksim + Postgres(3 DB) + RabbitMQ + 3 banka facade (mavibank/saribank/turuncubank).
+# AgentPlatform/PG ile AYNI cluster (91.132.49.70), repo başına namespace. ÖĞRENME/DEV: ephemeral Postgres.
+# InterVposOptions default'lu (949/tr) → env gerekmez. Banka credential'ları (ShopCode/UserPass) DB'de seed'li,
+# env'de DEĞİL (sim bunları doğrular). Bir-kerelik: ghcr-pull secret (cluster) + GHCR_PAT + DEPLOY_SSH_KEY (repo).
+---
+apiVersion: v1
+kind: Namespace
+metadata: { name: banksim }
+---
+apiVersion: v1
+kind: ConfigMap
+metadata: { name: postgres-init, namespace: banksim }
+data:
+  init.sql: |
+    CREATE DATABASE "mavibankDb";
+    CREATE DATABASE "saribankDb";
+    CREATE DATABASE "turuncubankDb";
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata: { name: postgres, namespace: banksim }
+spec:
+  replicas: 1
+  selector: { matchLabels: { app: postgres } }
+  template:
+    metadata: { labels: { app: postgres } }
+    spec:
+      containers:
+        - name: postgres
+          image: postgres:16-alpine
+          env:
+            - { name: POSTGRES_USER, value: postgres }
+            - { name: POSTGRES_PASSWORD, value: BankSim2026 }
+          ports: [ { containerPort: 5432 } ]
+          volumeMounts: [ { name: init, mountPath: /docker-entrypoint-initdb.d } ]
+      volumes: [ { name: init, configMap: { name: postgres-init } } ]
+---
+apiVersion: v1
+kind: Service
+metadata: { name: postgres, namespace: banksim }
+spec: { selector: { app: postgres }, ports: [ { port: 5432, targetPort: 5432 } ] }
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata: { name: rabbitmq, namespace: banksim }
+spec:
+  replicas: 1
+  selector: { matchLabels: { app: rabbitmq } }
+  template:
+    metadata: { labels: { app: rabbitmq } }
+    spec:
+      containers:
+        - name: rabbitmq
+          image: rabbitmq:3.13-management
+          ports: [ { containerPort: 5672 }, { containerPort: 15672 } ]
+---
+apiVersion: v1
+kind: Service
+metadata: { name: rabbitmq, namespace: banksim }
+spec:
+  selector: { app: rabbitmq }
+  ports: [ { name: amqp, port: 5672, targetPort: 5672 }, { name: mgmt, port: 15672, targetPort: 15672 } ]
+---
+# ── MaviBank (InterVpos) ──
+apiVersion: apps/v1
+kind: Deployment
+metadata: { name: mavibank-api, namespace: banksim }
+spec:
+  replicas: 1
+  selector: { matchLabels: { app: mavibank-api } }
+  template:
+    metadata: { labels: { app: mavibank-api } }
+    spec:
+      imagePullSecrets: [ { name: ghcr-pull } ]
+      containers:
+        - name: mavibank-api
+          image: ghcr.io/hasancagri/banksimulator/mavibank-api:latest
+          imagePullPolicy: Always
+          ports: [ { containerPort: 8080 } ]
+          env:
+            - { name: ASPNETCORE_URLS, value: "http://+:8080" }
+            - { name: "ConnectionStrings__mavibankDb", value: "Host=postgres;Port=5432;Username=postgres;Password=BankSim2026;Database=mavibankDb" }
+            - { name: "ConnectionStrings__rabbitmq", value: "amqp://guest:guest@rabbitmq:5672" }
+---
+apiVersion: v1
+kind: Service
+metadata: { name: mavibank-api, namespace: banksim }
+spec: { selector: { app: mavibank-api }, ports: [ { port: 8080, targetPort: 8080 } ] }
+---
+# ── SarıBank (InterVpos, farklı config) ──
+apiVersion: apps/v1
+kind: Deployment
+metadata: { name: saribank-api, namespace: banksim }
+spec:
+  replicas: 1
+  selector: { matchLabels: { app: saribank-api } }
+  template:
+    metadata: { labels: { app: saribank-api } }
+    spec:
+      imagePullSecrets: [ { name: ghcr-pull } ]
+      containers:
+        - name: saribank-api
+          image: ghcr.io/hasancagri/banksimulator/saribank-api:latest
+          imagePullPolicy: Always
+          ports: [ { containerPort: 8080 } ]
+          env:
+            - { name: ASPNETCORE_URLS, value: "http://+:8080" }
+            - { name: "ConnectionStrings__saribankDb", value: "Host=postgres;Port=5432;Username=postgres;Password=BankSim2026;Database=saribankDb" }
+            - { name: "ConnectionStrings__rabbitmq", value: "amqp://guest:guest@rabbitmq:5672" }
+---
+apiVersion: v1
+kind: Service
+metadata: { name: saribank-api, namespace: banksim }
+spec: { selector: { app: saribank-api }, ports: [ { port: 8080, targetPort: 8080 } ] }
+---
+# ── TuruncuBank (TuruncuXml protokolü) ──
+apiVersion: apps/v1
+kind: Deployment
+metadata: { name: turuncubank-api, namespace: banksim }
+spec:
+  replicas: 1
+  selector: { matchLabels: { app: turuncubank-api } }
+  template:
+    metadata: { labels: { app: turuncubank-api } }
+    spec:
+      imagePullSecrets: [ { name: ghcr-pull } ]
+      containers:
+        - name: turuncubank-api
+          image: ghcr.io/hasancagri/banksimulator/turuncubank-api:latest
+          imagePullPolicy: Always
+          ports: [ { containerPort: 8080 } ]
+          env:
+            - { name: ASPNETCORE_URLS, value: "http://+:8080" }
+            - { name: "ConnectionStrings__turuncubankDb", value: "Host=postgres;Port=5432;Username=postgres;Password=BankSim2026;Database=turuncubankDb" }
+            - { name: "ConnectionStrings__rabbitmq", value: "amqp://guest:guest@rabbitmq:5672" }
+---
+apiVersion: v1
+kind: Service
+metadata: { name: turuncubank-api, namespace: banksim }
+spec: { selector: { app: turuncubank-api }, ports: [ { port: 8080, targetPort: 8080 } ] }

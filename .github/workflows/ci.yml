@@ -1,0 +1,81 @@
+name: CI
+
+# TETİK: master'a push VEYA herhangi bir PR açıl/güncellenince koş.
+on:
+  push:
+    branches: [master]
+  pull_request:
+
+jobs:
+  # ───────────── KAPI: her PR + her master push'ta derle + test ─────────────
+  # Özel feed YOK (düz nuget.org); .NET 10; tek test projesi (MaviBank.Api.Tests) slnx'ten bulunur.
+  build-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+      - run: dotnet build
+      - run: dotnet test --no-build
+
+  # ───────────── ÜRETİM (go-live): master merge'inde image bas + ghcr'a it ─────────────
+  # Aspire servisleri: mavibank-api, saribank-api, turuncubank-api → ghcr.io/hasancagri/banksimulator/<svc>.
+  # GEREKSİNİM: repo'da GHCR_PAT secret (write:packages). Yoksa bu job master'da kırmızı olur.
+  image:
+    needs: build-test
+    if: github.event_name == 'push' && github.ref == 'refs/heads/master'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Aspire CLI kur
+        run: |
+          dotnet tool install -g Aspire.Cli
+          echo "$HOME/.dotnet/tools" >> "$GITHUB_PATH"
+
+      - name: ghcr login
+        run: echo "${{ secrets.GHCR_PAT }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
+
+      - name: Image bas + ghcr'a it
+        run: aspire do push --apphost src/aspire/AppHost/AppHost.csproj --non-interactive
+
+      - name: latest tag retag + push
+        run: |
+          for svc in mavibank-api saribank-api turuncubank-api; do
+            repo="ghcr.io/hasancagri/banksimulator/$svc"
+            src=$(docker images --format '{{.Repository}}:{{.Tag}}' | grep "^${repo}:aspire-deploy-" | head -1)
+            if [ -n "$src" ]; then docker tag "$src" "$repo:latest" && docker push "$repo:latest"; fi
+          done
+
+  # ───────────── CD: master merge'inde cluster'a deploy (SSH → kubectl, namespace banksim) ─────────────
+  # AgentPlatform/PG ile AYNI host (91.132.49.70), ayrı namespace. GEREKSİNİM: DEPLOY_SSH_KEY repo secret
+  # + cluster'da ghcr-pull imagePullSecret (banksim ns). deploy/k8s/banksimulator.yaml uygulanır.
+  deploy:
+    needs: image
+    if: github.event_name == 'push' && github.ref == 'refs/heads/master'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: SSH deploy key
+        run: |
+          mkdir -p ~/.ssh && chmod 700 ~/.ssh
+          echo "${{ secrets.DEPLOY_SSH_KEY }}" > ~/.ssh/deploy && chmod 600 ~/.ssh/deploy
+          ssh-keyscan -H 91.132.49.70 >> ~/.ssh/known_hosts 2>/dev/null
+      # NOT: remote script tek-tirnakli; icine Turkce apostrof KOYMA (tirnagi kapatir).
+      - name: Manifest kopyala + uygula + app rollout
+        run: |
+          scp -i ~/.ssh/deploy -r deploy/k8s root@91.132.49.70:/tmp/banksim-k8s
+          ssh -i ~/.ssh/deploy root@91.132.49.70 '
+            set -e
+            kubectl apply -f /tmp/banksim-k8s/
+            apps=$(kubectl -n banksim get deploy -o name | grep -vE "postgres|rabbitmq")
+            kubectl -n banksim rollout restart $apps
+            kubectl -n banksim rollout status $apps --timeout=300s
+          '
